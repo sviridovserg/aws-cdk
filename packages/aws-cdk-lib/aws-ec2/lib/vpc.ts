@@ -8,7 +8,7 @@ import {
 import { AllocatedSubnet, IIpAddresses, RequestedSubnet, IpAddresses } from './ip-addresses';
 import { NatProvider } from './nat';
 import { INetworkAcl, NetworkAcl, SubnetNetworkAclAssociation } from './network-acl';
-import { RouteTable, RouteTableProps } from './route';
+import { RouteTable, RouteTableOptions } from './route';
 import { SubnetFilter } from './subnet';
 import { allRouteTableIds, defaultSubnetName, flatten, ImportSubnetGroup, subnetGroupNameFromConstructId, subnetId } from './util';
 import { GatewayVpcEndpoint, GatewayVpcEndpointAwsService, GatewayVpcEndpointOptions, InterfaceVpcEndpoint, InterfaceVpcEndpointOptions } from './vpc-endpoint';
@@ -1555,17 +1555,16 @@ export class Vpc extends VpcBase {
     }
   }
 
-  // TODO Create a new type equivalent to Omit<EmbeddedSubnetProps, 'vpcId'>
-  public addSubnet(id: string, props: EmbeddedSubnetProps): ISubnet {
+  public addSubnet(id: string, options: EmbeddedSubnetOptions): ISubnet {
     return new EmbeddedSubnet(this, id, {
-      ...props,
+      ...options,
       vpcId: this.vpcId,
     });
   }
 
-  public addRouteTable(id: string, props: RouteTableProps): IRouteTable {
+  public addRouteTable(id: string, props: RouteTableOptions): IRouteTable {
     return new RouteTable(this, id, {
-      ...props,
+      routes: props.routes,
       vpc: this,
     });
   }
@@ -2001,12 +2000,28 @@ export class Subnet extends Resource implements ISubnet {
 }
 
 // TODO Come up with a better name
-export interface ExposedRouteTableProps {
-  // readonly routes:
+export interface EmbeddedSubnetProps extends SubnetProps {
+  readonly routeTable?: IRouteTable;
 }
 
-// TODO Come up with a better name
-export interface EmbeddedSubnetProps extends SubnetProps {
+export interface EmbeddedSubnetOptions {
+  /**
+   * The availability zone for the subnet
+   */
+  readonly availabilityZone: string;
+
+  /**
+   * The CIDR notation for this subnet
+   */
+  readonly cidrBlock: string;
+
+  /**
+   * Controls if a public IP is associated to an instance at launch
+   *
+   * @default true in Subnet.Public, false in Subnet.Private or Subnet.Isolated.
+   */
+  readonly mapPublicIpOnLaunch?: boolean;
+
   readonly routeTable?: IRouteTable;
 }
 

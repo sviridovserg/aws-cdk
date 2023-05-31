@@ -29,6 +29,8 @@ import {
   Vpc,
   IpAddresses,
   InterfaceVpcEndpointAwsService,
+  Route,
+  Router,
 } from '../lib';
 
 describe('vpc', () => {
@@ -2348,6 +2350,46 @@ describe('vpc', () => {
             },
           },
         },
+      });
+    });
+  });
+
+  describe('Subnet control', () => {
+    test('can add subnet', () => {
+      const app = new App();
+      const stack = new Stack(app, 'Stack1');
+      const vpc = new Vpc(stack, 'Vpc');
+
+      const publicRouteTable = vpc.addRouteTable('routeTable', {
+        routes: [
+          Route.to({
+            destination: '0.0.0.0/0',
+            target: Router.INTERNET_GATEWAY,
+          }),
+        ],
+      });
+
+      vpc.addSubnet('publicSubnet', {
+        cidrBlock: '10.2.0.0/20',
+        availabilityZone: 'us-west-2a',
+        routeTable: publicRouteTable,
+        mapPublicIpOnLaunch: false,
+      });
+
+      Template.fromStack(stack).hasResourceProperties('AWS::EC2::Subnet', {
+        AvailabilityZone: 'us-west-2a',
+        CidrBlock: '10.2.0.0/20',
+        MapPublicIpOnLaunch: false,
+        VpcId: { Ref: 'Vpc8378EB38' },
+      });
+
+      Template.fromStack(stack).hasResourceProperties('AWS::EC2::RouteTable', {
+        VpcId: { Ref: 'Vpc8378EB38' },
+      });
+
+      Template.fromStack(stack).hasResourceProperties('AWS::EC2::Route', {
+        DestinationCidrBlock: '0.0.0.0/0',
+        GatewayId: 'TODO',
       });
     });
   });
