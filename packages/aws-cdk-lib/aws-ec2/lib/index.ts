@@ -31,6 +31,7 @@ export * from './client-vpn-route';
 export * from './ip-addresses';
 export * from './machine-image';
 export * from './placement-group';
+export * from './route';
 
 // AWS::EC2 CloudFormation Resources:
 export * from './ec2.generated';

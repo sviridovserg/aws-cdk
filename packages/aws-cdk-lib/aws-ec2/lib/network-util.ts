@@ -1,3 +1,5 @@
+import { AddressFamily } from "./prefix-list";
+
 /**
  * InvalidCidrRangeError is thrown when attempting to perform operations on a CIDR
  * range that is either not valid, or outside of the VPC size limits.
@@ -188,6 +190,18 @@ export class CidrBlock {
    */
   public static calculateNetsize(mask: number): number {
     return 2 ** (32 - mask);
+  }
+
+  public static addressFamily(cidr: string): AddressFamily {
+    if (cidr.match(/^(\d{1,3}\.){3}\d{1,3}(\/\d+)?$/)) {
+      return AddressFamily.IP_V4;
+    }
+
+    if (cidr.match(/^([\da-f]{0,4}:){2,7}([\da-f]{0,4})?(\/\d+)?$/)) {
+      return AddressFamily.IP_V6;
+    }
+
+    throw new Error(`Invalid CIDR: ${cidr}`);
   }
 
   /*

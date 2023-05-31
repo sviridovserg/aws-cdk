@@ -8,6 +8,7 @@ import {
 import { AllocatedSubnet, IIpAddresses, RequestedSubnet, IpAddresses } from './ip-addresses';
 import { NatProvider } from './nat';
 import { INetworkAcl, NetworkAcl, SubnetNetworkAclAssociation } from './network-acl';
+import { RouteTable, RouteTableProps } from './route';
 import { SubnetFilter } from './subnet';
 import { allRouteTableIds, defaultSubnetName, flatten, ImportSubnetGroup, subnetGroupNameFromConstructId, subnetId } from './util';
 import { GatewayVpcEndpoint, GatewayVpcEndpointAwsService, GatewayVpcEndpointOptions, InterfaceVpcEndpoint, InterfaceVpcEndpointOptions } from './vpc-endpoint';
@@ -1554,6 +1555,21 @@ export class Vpc extends VpcBase {
     }
   }
 
+  // TODO Create a new type equivalent to Omit<EmbeddedSubnetProps, 'vpcId'>
+  public addSubnet(id: string, props: EmbeddedSubnetProps): ISubnet {
+    return new EmbeddedSubnet(this, id, {
+      ...props,
+      vpcId: this.vpcId,
+    });
+  }
+
+  public addRouteTable(id: string, props: RouteTableProps): IRouteTable {
+    return new RouteTable(this, id, {
+      ...props,
+      vpc: this,
+    });
+  }
+
   /**
    * Adds a new S3 gateway endpoint to this VPC
    *
@@ -1886,19 +1902,24 @@ export class Subnet extends Resource implements ISubnet {
     this.subnetNetworkAclAssociationId = Lazy.string({ produce: () => this._networkAcl.networkAclId });
     this.node.defaultChild = subnet;
 
-    const table = new CfnRouteTable(this, 'RouteTable', {
-      vpcId: props.vpcId,
-    });
-    this.routeTable = { routeTableId: table.ref };
+    this.routeTable = this.addRouteTable(props.vpcId);
 
     // Associate the public route table for this subnet, to this subnet
     const routeAssoc = new CfnSubnetRouteTableAssociation(this, 'RouteTableAssociation', {
       subnetId: this.subnetId,
-      routeTableId: table.ref,
+      routeTableId: this.routeTable.routeTableId,
     });
     this._internetConnectivityEstablished.add(routeAssoc);
 
     this.internetConnectivityEstablished = this._internetConnectivityEstablished;
+  }
+
+  protected addRouteTable(vpcId: string): IRouteTable {
+    const table = new CfnRouteTable(this, 'RouteTable', {
+      vpcId: vpcId,
+    });
+
+    return { routeTableId: table.ref };
   }
 
   /**
@@ -1976,6 +1997,29 @@ export class Subnet extends Resource implements ISubnet {
       networkAcl,
       subnet: this,
     });
+  }
+}
+
+// TODO Come up with a better name
+export interface ExposedRouteTableProps {
+  // readonly routes:
+}
+
+// TODO Come up with a better name
+export interface EmbeddedSubnetProps extends SubnetProps {
+  readonly routeTable?: IRouteTable;
+}
+
+class EmbeddedSubnet extends Subnet implements ISubnet {
+  private rTable?: IRouteTable;
+
+  constructor(scope: Construct, id: string, props: EmbeddedSubnetProps) {
+    super(scope, id, props);
+    this.rTable = props.routeTable;
+  }
+
+  protected addRouteTable(vpcId: string): IRouteTable {
+    return this.rTable ?? super.addRouteTable(vpcId);
   }
 }
 
