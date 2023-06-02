@@ -31,6 +31,7 @@ import {
   InterfaceVpcEndpointAwsService,
   Route,
   Router,
+  GatewayVpcEndpointAwsService,
 } from '../lib';
 
 describe('vpc', () => {
@@ -2362,6 +2363,7 @@ describe('vpc', () => {
 
       const publicRouteTable = vpc.addRouteTable('routeTable', {
         routes: [
+          Route.toGatewayEndpoint(GatewayVpcEndpointAwsService.S3),
           Route.to({
             destination: '0.0.0.0/0',
             target: Router.INTERNET_GATEWAY,
@@ -2390,6 +2392,25 @@ describe('vpc', () => {
       Template.fromStack(stack).hasResourceProperties('AWS::EC2::Route', {
         DestinationCidrBlock: '0.0.0.0/0',
         GatewayId: 'TODO',
+      });
+
+      Template.fromStack(stack).hasResourceProperties('AWS::EC2::VPCEndpoint', {
+        VpcId: { Ref: 'Vpc8378EB38' },
+        ServiceName: {
+          'Fn::Join': [
+            '',
+            [
+              'com.amazonaws.',
+              {
+                Ref: 'AWS::Region',
+              },
+              '.s3',
+            ],
+          ],
+        },
+        RouteTableIds: [{
+          Ref: 'VpcrouteTable231A8E42',
+        }],
       });
     });
   });
