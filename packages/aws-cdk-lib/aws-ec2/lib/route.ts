@@ -4,8 +4,10 @@ import { IRouteTable, IVpc } from './vpc';
 import { Resource } from '../../core';
 import { CidrBlock } from './network-util';
 import { AddressFamily } from './prefix-list';
+import { GatewayVpcEndpoint } from './vpc-endpoint';
 
 export interface IRoute {
+  bind(options: RouterOptions): RouteConfig;
 }
 
 interface RouterOptions {
@@ -99,9 +101,37 @@ interface RouterConfiguration {
   readonly vpcPeeringConnectionId?: string;
 }
 
-export abstract class Route {
-  public static to(entry: RouteEntry): IRouteFactory {
-    return new GenericRouteFactory(entry.destination, entry.target);
+interface RouteConfig extends RouterConfiguration, DestinationConfiguration {
+}
+
+export class Route implements IRoute {
+  public static to(entry: RouteEntry): IRoute {
+    return new Route(entry.destination, entry.target);
+  }
+
+  public static toGatewayEndpoint(endpoint: GatewayVpcEndpoint): IRoute {
+    const target = new class implements IRouter {
+      bind(_: RouterOptions): RouterConfiguration {
+        return { vpcEndpointId: endpoint.vpcEndpointId };
+      }
+    };
+
+    return new Route(entry.destination, target);
+  }
+
+  constructor(public readonly destination: string, public target: IRouter) {}
+
+  public bind(options: RouterOptions): RouteConfig {
+    const addressFamily = CidrBlock.addressFamily(this.destination);
+
+    const destination: DestinationConfiguration = addressFamily === AddressFamily.IP_V4
+      ? { destinationCidrBlock: this.destination }
+      : { destinationIpv6CidrBlock: this.destination };
+
+    return {
+      ...destination,
+      ...this.target.bind(options),
+    };
   }
 }
 
@@ -110,75 +140,35 @@ export interface RouteConfiguration {
   readonly vpc: IVpc;
 }
 
-export interface IRouteFactory {
-  bind(scope: Construct, id: string, config: RouteConfiguration): IRoute;
-}
-
-class GenericRouteFactory implements IRouteFactory {
-  constructor(private readonly destination: string, private readonly target: IRouter) {}
-
-  public bind(scope: Construct, id: string, config: RouteConfiguration): IRoute {
-    return new GenericRoute(scope, id, {
-      ...config,
-      destination: this.destination,
-      target: this.target,
-      vpc: config.vpc,
-    });
-  }
-}
-
-interface RouteProps extends RouteConfiguration {
-  readonly destination: string;
-  readonly target: IRouter;
-}
-
-// TODO Remove the export
-export class GenericRoute extends Resource implements IRoute {
-  constructor(scope: Construct, id: string, props: RouteProps) {
-    super(scope, id);
-    const { destination, target, routeTable, vpc } = props;
-
-    const addressFamily = CidrBlock.addressFamily(destination);
-
-    const dest: DestinationConfiguration = addressFamily === AddressFamily.IP_V4
-      ? { destinationCidrBlock: destination }
-      : { destinationIpv6CidrBlock: destination };
-
-    const routerConfig = target.bind({ routeTable, vpc });
-
-    new CfnRoute(this, 'Resource', {
-      routeTableId: routeTable.routeTableId,
-      ...dest,
-      ...routerConfig,
-    });
-  }
-}
-
 // TODO Maybe move this class to private/
 export interface RouteTableProps {
   readonly vpc: IVpc;
-  readonly routes: IRouteFactory[];
+  readonly routes: IRoute[];
 }
 
 export interface RouteTableOptions {
-  readonly routes: IRouteFactory[];
+  readonly routes: IRoute[];
 }
 
 export class RouteTable extends Resource implements IRouteTable {
   public readonly routeTableId: string;
-  public readonly routes: IRoute[];
   public readonly vpc: IVpc;
 
   constructor(scope: Construct, id: string, props: RouteTableProps) {
     super(scope, id);
     this.vpc = props.vpc;
+
     const resource = new CfnRouteTable(this, 'Resource', {
       vpcId: props.vpc.vpcId,
     });
     this.routeTableId = resource.ref;
-    this.routes = props.routes.map((route, idx) => route.bind(this, `route${idx}`, {
+
+    props.routes.map(route => route.bind({
       routeTable: this,
       vpc: this.vpc,
+    })).map((config, idx) => new CfnRoute(this, `route${idx}`, {
+      routeTableId: resource.ref,
+      ...config,
     }));
   }
 }
