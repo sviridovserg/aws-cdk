@@ -8,7 +8,7 @@ import {
 import { AllocatedSubnet, IIpAddresses, RequestedSubnet, IpAddresses } from './ip-addresses';
 import { NatProvider } from './nat';
 import { INetworkAcl, NetworkAcl, SubnetNetworkAclAssociation } from './network-acl';
-import { RouteTable, RouteTableOptions } from './route';
+import { IRouter, RouteTable, RouteTableOptions, RouterConfiguration, RouterOptions } from './route';
 import { SubnetFilter } from './subnet';
 import { allRouteTableIds, defaultSubnetName, flatten, ImportSubnetGroup, subnetGroupNameFromConstructId, subnetId } from './util';
 import { GatewayVpcEndpoint, GatewayVpcEndpointAwsService, GatewayVpcEndpointOptions, InterfaceVpcEndpoint, InterfaceVpcEndpointOptions } from './vpc-endpoint';
@@ -2168,6 +2168,58 @@ export interface PublicSubnetProps extends SubnetProps {
 export interface IPublicSubnet extends ISubnet { }
 
 export interface PublicSubnetAttributes extends SubnetAttributes { }
+
+export enum Domain {
+  VPC = 'vpc',
+  STANDARD = 'standard',
+}
+
+export interface ElasticIpProps {
+  readonly domain: Domain;
+}
+
+export class ElasticIp extends Construct {
+  public readonly eipAllocationId: string;
+
+  constructor(scope: Construct, id: string, props: ElasticIpProps) {
+    super(scope, id);
+
+    const resource = new CfnEIP(this, 'Resource', {
+      domain: props.domain,
+    });
+
+    this.eipAllocationId = resource.attrAllocationId;
+  }
+}
+
+export interface NatGatewayOptions {
+  subnet: ISubnet;
+  eip?: ElasticIp;
+}
+
+export class NatGateway extends Construct implements IRouter {
+  private readonly subnet: ISubnet;
+  private readonly eip?: ElasticIp;
+
+  constructor(scope: Construct, id: string, props: NatGatewayOptions) {
+    super(scope, id);
+    this.subnet = props.subnet;
+    this.eip = props.eip;
+  }
+
+  bind(_options: RouterOptions): RouterConfiguration {
+    const ngw = new CfnNatGateway(this, 'NATGateway', {
+      subnetId: this.subnet.subnetId,
+      allocationId: this.eip?.eipAllocationId ?? new ElasticIp(this, 'EIP', {
+        domain: Domain.VPC,
+      }).eipAllocationId,
+    });
+    ngw.node.addDependency(this.subnet.internetConnectivityEstablished);
+    return {
+      natGatewayId: ngw.ref,
+    };
+  }
+}
 
 /**
  * Represents a public VPC subnet resource

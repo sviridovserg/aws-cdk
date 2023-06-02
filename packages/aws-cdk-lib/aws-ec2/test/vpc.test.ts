@@ -32,6 +32,7 @@ import {
   Route,
   Router,
   GatewayVpcEndpointAwsService,
+  NatGateway,
 } from '../lib';
 
 describe('vpc', () => {
@@ -2432,6 +2433,48 @@ describe('vpc', () => {
       Template.fromStack(stack).hasResourceProperties('AWS::EC2::VPCCidrBlock', {
         CidrBlock: '10.2.0.0/16',
         VpcId: { Ref: 'Vpc8378EB38' },
+      });
+    });
+
+    test('can add a nat gateway and a route to it', () => {
+      const app = new App();
+      const stack = new Stack(app, 'Stack1');
+      const vpc = new Vpc(stack, 'Vpc');
+
+      const subnet = vpc.addSubnet('publicSubnet', {
+        cidrBlock: '10.2.0.0/20',
+        availabilityZone: 'us-west-2a',
+        mapPublicIpOnLaunch: false,
+      });
+
+      // Ideally, we would have an addNatGateway() to ISubnet or just on Subnet,
+      // that would return IRouter, but this method already exists, with a
+      // different signature, and only in PublicSubnet. So we have to export
+      // NatGateway and create it outside.
+      const natGateway = new NatGateway(vpc, 'NatGateway', {
+        subnet: subnet,
+      });
+
+      const routeTable = vpc.addRouteTable('routeTable', {
+        routes: [
+          Route.to({
+            destination: '0.0.0.0/0',
+            target: natGateway,
+          }),
+        ],
+      });
+
+      vpc.addSubnet('privateSubnet', {
+        cidrBlock: '10.3.0.0/20',
+        availabilityZone: 'us-west-2a',
+        routeTable,
+      });
+
+      Template.fromStack(stack).hasResourceProperties('AWS::EC2::NatGateway', {
+        AllocationId: {
+          'Fn::GetAtt': ['VpcNatGatewayEIP37D567A4', 'AllocationId'],
+        },
+        SubnetId: { Ref: 'VpcpublicSubnet36EEA15C' },
       });
     });
   });

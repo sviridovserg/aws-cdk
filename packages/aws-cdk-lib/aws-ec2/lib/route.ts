@@ -10,7 +10,7 @@ export interface IRoute {
   bind(scope: Construct, id: string, options: RouterOptions): void;
 }
 
-interface RouterOptions {
+export interface RouterOptions {
   readonly routeTable: IRouteTable;
   readonly vpc: IVpc;
 }
@@ -49,7 +49,7 @@ interface DestinationConfiguration {
   readonly destinationIpv6CidrBlock?: string;
 }
 
-interface RouterConfiguration {
+export interface RouterConfiguration {
   /**
    * The ID of the carrier gateway.
    */
