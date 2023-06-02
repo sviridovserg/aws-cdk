@@ -17,6 +17,10 @@ export class IpAddresses {
     return new Cidr(cidrBlock);
   }
 
+  public static ipv4(cidrBlock: string): IIpAddresses {
+    return this.cidr(cidrBlock);
+  }
+
   /**
    * Used to provide centralized Ip Address Management services for your VPC
    *
@@ -29,6 +33,67 @@ export class IpAddresses {
   }
 
   private constructor() { }
+}
+
+export interface IPAddressesConfig {
+  /**
+     * Requests an Amazon-provided IPv6 CIDR block with a /56 prefix length for the VPC. You cannot specify the range of IPv6 addresses, or the size of the CIDR block.
+     *
+     * @link http://docs.aws.amazon.com/AWSCloudFormation/latest/UserGuide/aws-resource-ec2-vpccidrblock.html#cfn-ec2-vpccidrblock-amazonprovidedipv6cidrblock
+     */
+  readonly amazonProvidedIpv6CidrBlock?: boolean;
+
+  /**
+     * An IPv4 CIDR block to associate with the VPC.
+     *
+     * @link http://docs.aws.amazon.com/AWSCloudFormation/latest/UserGuide/aws-resource-ec2-vpccidrblock.html#cfn-ec2-vpccidrblock-cidrblock
+     */
+  readonly cidrBlock?: string;
+
+  /**
+     * Associate a CIDR allocated from an IPv4 IPAM pool to a VPC. For more information about Amazon VPC IP Address Manager (IPAM), see [What is IPAM?](https://docs.aws.amazon.com//vpc/latest/ipam/what-is-it-ipam.html) in the *Amazon VPC IPAM User Guide* .
+     *
+     * @link http://docs.aws.amazon.com/AWSCloudFormation/latest/UserGuide/aws-resource-ec2-vpccidrblock.html#cfn-ec2-vpccidrblock-ipv4ipampoolid
+     */
+  readonly ipv4IpamPoolId?: string;
+
+  /**
+     * The netmask length of the IPv4 CIDR you would like to associate from an Amazon VPC IP Address Manager (IPAM) pool. For more information about IPAM, see [What is IPAM?](https://docs.aws.amazon.com//vpc/latest/ipam/what-is-it-ipam.html) in the *Amazon VPC IPAM User Guide* .
+     *
+     * @link http://docs.aws.amazon.com/AWSCloudFormation/latest/UserGuide/aws-resource-ec2-vpccidrblock.html#cfn-ec2-vpccidrblock-ipv4netmasklength
+     */
+  readonly ipv4NetmaskLength?: number;
+
+  /**
+     * An IPv6 CIDR block from the IPv6 address pool. You must also specify `Ipv6Pool` in the request.
+     *
+     * To let Amazon choose the IPv6 CIDR block for you, omit this parameter.
+     *
+     * @link http://docs.aws.amazon.com/AWSCloudFormation/latest/UserGuide/aws-resource-ec2-vpccidrblock.html#cfn-ec2-vpccidrblock-ipv6cidrblock
+     */
+  readonly ipv6CidrBlock?: string;
+
+  /**
+     * Associates a CIDR allocated from an IPv6 IPAM pool to a VPC. For more information about Amazon VPC IP Address Manager (IPAM), see [What is IPAM?](https://docs.aws.amazon.com//vpc/latest/ipam/what-is-it-ipam.html) in the *Amazon VPC IPAM User Guide* .
+     *
+     * @link http://docs.aws.amazon.com/AWSCloudFormation/latest/UserGuide/aws-resource-ec2-vpccidrblock.html#cfn-ec2-vpccidrblock-ipv6ipampoolid
+     */
+  readonly ipv6IpamPoolId?: string;
+
+  /**
+     * The netmask length of the IPv6 CIDR you would like to associate from an Amazon VPC IP Address Manager (IPAM) pool. For more information about IPAM, see [What is IPAM?](https://docs.aws.amazon.com//vpc/latest/ipam/what-is-it-ipam.html) in the *Amazon VPC IPAM User Guide* .
+     *
+     * @link http://docs.aws.amazon.com/AWSCloudFormation/latest/UserGuide/aws-resource-ec2-vpccidrblock.html#cfn-ec2-vpccidrblock-ipv6netmasklength
+     */
+  readonly ipv6NetmaskLength?: number;
+
+  /**
+     * The ID of an IPv6 address pool from which to allocate the IPv6 CIDR block.
+     *
+     * @link http://docs.aws.amazon.com/AWSCloudFormation/latest/UserGuide/aws-resource-ec2-vpccidrblock.html#cfn-ec2-vpccidrblock-ipv6pool
+     */
+  readonly ipv6Pool?: string;
+
 }
 
 /**
@@ -48,6 +113,8 @@ export interface IIpAddresses {
    * Don't call this directly, the VPC will call it automatically.
    */
   allocateSubnetsCidr(input: AllocateCidrRequest): SubnetIpamOptions;
+
+  bind(): IPAddressesConfig;
 }
 
 /**
@@ -198,6 +265,13 @@ class AwsIpam implements IIpAddresses {
   constructor(private readonly props: AwsIpamProps) {
   }
 
+  bind(): IPAddressesConfig {
+    return {
+      ipv4IpamPoolId: this.props.ipv4IpamPoolId,
+      ipv4NetmaskLength: this.props.ipv4NetmaskLength,
+    };
+  }
+
   /**
    * Allocates Vpc Cidr. called when creating a Vpc using AwsIpam.
    */
@@ -265,6 +339,12 @@ class Cidr implements IIpAddresses {
     }
 
     this.networkBuilder = new NetworkBuilder(this.cidrBlock);
+  }
+
+  bind(): IPAddressesConfig {
+    return {
+      cidrBlock: this.cidrBlock,
+    };
   }
 
   /**

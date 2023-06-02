@@ -3,7 +3,7 @@ import { Construct, Dependable, DependencyGroup, IConstruct, IDependable, Node }
 import { ClientVpnEndpoint, ClientVpnEndpointOptions } from './client-vpn-endpoint';
 import {
   CfnEIP, CfnInternetGateway, CfnNatGateway, CfnRoute, CfnRouteTable, CfnSubnet,
-  CfnSubnetRouteTableAssociation, CfnVPC, CfnVPCGatewayAttachment, CfnVPNGatewayRoutePropagation,
+  CfnSubnetRouteTableAssociation, CfnVPC, CfnVPCCidrBlock, CfnVPCGatewayAttachment, CfnVPNGatewayRoutePropagation,
 } from './ec2.generated';
 import { AllocatedSubnet, IIpAddresses, RequestedSubnet, IpAddresses } from './ip-addresses';
 import { NatProvider } from './nat';
@@ -1089,6 +1089,8 @@ export interface VpcProps {
    * @default true if '@aws-cdk/aws-ec2:restrictDefaultSecurityGroup' is enabled, false otherwise
    */
   readonly restrictDefaultSecurityGroup?: boolean;
+
+  readonly secondaryAddressBlocks?: IIpAddresses[];
 }
 
 /**
@@ -1387,6 +1389,8 @@ export class Vpc extends VpcBase {
    */
   private readonly ipAddresses: IIpAddresses;
 
+  private readonly secondaryAddressBlocks: IIpAddresses[];
+
   /**
    * Subnet configurations for this VPC
    */
@@ -1424,6 +1428,7 @@ export class Vpc extends VpcBase {
     }
 
     this.ipAddresses = props.ipAddresses ?? IpAddresses.cidr(cidrBlock);
+    this.secondaryAddressBlocks = props.secondaryAddressBlocks ?? [];
 
     this.dnsHostnamesEnabled = props.enableDnsHostnames == null ? true : props.enableDnsHostnames;
     this.dnsSupportEnabled = props.enableDnsSupport == null ? true : props.enableDnsSupport;
@@ -1473,6 +1478,13 @@ export class Vpc extends VpcBase {
       resource: 'vpc',
       resourceName: this.vpcId,
     }, stack);
+
+    this.secondaryAddressBlocks.forEach((block, idx) => {
+      new CfnVPCCidrBlock(this, `SecondaryBlock${idx}`, {
+        vpcId: this.vpcId,
+        ...block.bind(),
+      });
+    });
 
     const defaultSubnet = props.natGateways === 0 ? Vpc.DEFAULT_SUBNETS_NO_NAT : Vpc.DEFAULT_SUBNETS;
     this.subnetConfiguration = ifUndefined(props.subnetConfiguration, defaultSubnet);

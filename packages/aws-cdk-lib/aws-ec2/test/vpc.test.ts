@@ -2413,6 +2413,27 @@ describe('vpc', () => {
         }],
       });
     });
+
+    test('can create VPC with secondary address blocks', () => {
+      const app = new App();
+      const stack = new Stack(app, 'Stack1');
+      new Vpc(stack, 'Vpc', {
+        secondaryAddressBlocks: [
+          IpAddresses.ipv4('10.1.0.0/16'),
+          IpAddresses.ipv4('10.2.0.0/16'),
+        ],
+      });
+
+      Template.fromStack(stack).hasResourceProperties('AWS::EC2::VPCCidrBlock', {
+        CidrBlock: '10.1.0.0/16',
+        VpcId: { Ref: 'Vpc8378EB38' },
+      });
+
+      Template.fromStack(stack).hasResourceProperties('AWS::EC2::VPCCidrBlock', {
+        CidrBlock: '10.2.0.0/16',
+        VpcId: { Ref: 'Vpc8378EB38' },
+      });
+    });
   });
 });
 
